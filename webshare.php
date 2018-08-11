@@ -2,6 +2,7 @@
 
 /**
  * Webshare download plugin for Synology download manager
+ *
  * @author Radovan Kepak <radovan@kepak.eu>
  */
 
@@ -21,6 +22,7 @@ if (!defined('DOWNLOAD_STATION_USER_AGENT')) {
 
 /**
  * Class SynoFileHostingWebshare
+ *
  * @author Radovan Kepak <radovan@kepak.eu>
  */
 class SynoFileHostingWebshare {
@@ -64,6 +66,11 @@ class SynoFileHostingWebshare {
 		$this->host = $host;
 	}
 
+	/**
+	 * Try to get direct link for file
+	 *
+	 * @return array
+	 */
 	public function GetDownloadInfo() {
 		try {
 			$ident = $this->getIdent($this->url);
