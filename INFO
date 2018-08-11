@@ -1,0 +1,10 @@
+{
+	"name": "Webshare.cz",
+	"hostprefix": "webshare.cz",
+	"displayname": "Webshare.cz",
+	"version": "18.08",
+	"authentication": "yes",
+	"module": "webshare.php",
+	"class": "SynoFileHostingWebshare",
+	"description": "Existing account required"
+}
