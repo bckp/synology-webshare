@@ -47,23 +47,16 @@ class SynoFileHostingWebshare {
 	protected $password;
 
 	/**
-	 * @var string
-	 */
-	protected $host;
-
-	/**
 	 * SynoFileHostingWebshare constructor.
 	 *
 	 * @param $url      string
 	 * @param $username string
 	 * @param $password string
-	 * @param $host     string
 	 */
-	public function __construct($url, $username, $password, $host) {
+	public function __construct($url, $username, $password) {
 		$this->url = $url;
 		$this->username = $username;
 		$this->password = $password;
-		$this->host = $host;
 	}
 
 	/**
@@ -81,7 +74,7 @@ class SynoFileHostingWebshare {
 			if (!$link = $this->getDirectLink($ident))
 				throw new \Exception('Link not found', ERR_FILE_NO_EXIST);
 
-			return [DOWNLOAD_URL => $this->getDirectLink($ident)];
+			return [DOWNLOAD_URL => $link];
 		} catch (\Exception $e) {
 			return [DOWNLOAD_ERROR => $e->getCode()];
 		}
