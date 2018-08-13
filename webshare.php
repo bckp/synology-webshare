@@ -1,24 +1,4 @@
-<?php
-
-/**
- * Webshare download plugin for Synology download manager
- *
- * @author Radovan Kepak <radovan@kepak.eu>
- */
-
-/**
- * For develop only, on NAS should be ignored
- */
-if (!defined('DOWNLOAD_STATION_USER_AGENT')) {
-	define('ERR_NOT_SUPPORT_TYPE', 116);
-	define('LOGIN_FAIL', 4);
-	define('ERR_FILE_NO_EXIST', 114);
-	define('DOWNLOAD_URL', 'DOWNLOAD_URL');
-	define('DOWNLOAD_ERROR', 'DOWNLOAD_ERROR');
-	define('DOWNLOAD_STATION_USER_AGENT', 'Mozilla/4.0 (compatible; MSIE 6.1; Windows XP)');
-	define('USER_IS_FREE', 5);
-	define('USER_IS_PREMIUM', 6);
-}
+<?php /** @noinspection SpellCheckingInspection */
 
 /**
  * Class SynoFileHostingWebshare
@@ -45,6 +25,16 @@ class SynoFileHostingWebshare {
 	 * @var string
 	 */
 	protected $password;
+
+	/**
+	 * @var string
+	 */
+	protected $salt;
+
+	/**
+	 * @var string
+	 */
+	protected $token;
 
 	/**
 	 * SynoFileHostingWebshare constructor.
@@ -102,11 +92,11 @@ class SynoFileHostingWebshare {
 	 * @throws \Exception
 	 */
 	protected function getDirectLink($ident) {
-		if (!$salt = $this->getSalt()) {
+		if (!$this->getSalt()) {
 			throw new \Exception('Salt can`t be loaded', LOGIN_FAIL);
 		}
 
-		if (!$token = $this->getToken($salt)) {
+		if (!$token = $this->getToken()) {
 			throw new \Exception('User can`t be logged!', LOGIN_FAIL);
 		}
 
@@ -121,20 +111,23 @@ class SynoFileHostingWebshare {
 	 * @return string|false
 	 */
 	protected function getSalt() {
-		$response = $this->makeRequest('salt', [
-			'username_or_email' => $this->username,
-		]);
+		if ($this->salt === null) {
+			$this->salt = false;
+			$response = $this->makeRequest('salt', [
+				'username_or_email' => $this->username,
+			]);
 
-		if ($response) {
-			return $this->getXmlParam($response, 'salt');
+			if ($response) {
+				$this->salt = $this->getXmlParam($response, 'salt');
+			}
 		}
 
-		return false;
+		return $this->salt;
 	}
 
 	/**
 	 * @param string $action
-	 * @param array  $data
+	 * @param array $data
 	 * @return bool|string
 	 */
 	protected function makeRequest($action, array $data) {
@@ -147,8 +140,8 @@ class SynoFileHostingWebshare {
 
 	/**
 	 * @param string $url
-	 * @param array  $headers
-	 * @param array  $data
+	 * @param array $headers
+	 * @param array $data
 	 * @return string
 	 */
 	protected function request($url, array $headers = [], array $data = []) {
@@ -193,18 +186,24 @@ class SynoFileHostingWebshare {
 	 * @param string salt
 	 * @return null|string
 	 */
-	protected function getToken($salt) {
-		$response = $this->makeRequest('login', [
-			'username_or_email' => $this->username,
-			'password' => sha1(crypt($this->password, '$1$' . $salt . '$')),
-			'digest' => md5($this->username . ':Webshare:' . $this->password),
-		]);
+	protected function getToken() {
+		if ($this->token === null) {
+			$this->token = false;
+			if (!$salt = $this->getSalt())
+				return false;
 
-		if ($response) {
-			return $this->getXmlParam($response, 'token');
+			$response = $this->makeRequest('login', [
+				'username_or_email' => $this->username,
+				'password' => sha1(crypt($this->password, '$1$' . $salt . '$')),
+				'digest' => md5($this->username . ':Webshare:' . $this->password),
+			]);
+
+			if ($response) {
+				$this->token = $this->getXmlParam($response, 'token');
+			}
 		}
 
-		return false;
+		return $this->token;
 	}
 
 	/**
@@ -213,10 +212,10 @@ class SynoFileHostingWebshare {
 	 * @return int
 	 */
 	public function Verify() {
-		if (!$salt = $this->getSalt())
+		if (!$this->getSalt())
 			return LOGIN_FAIL;
 
-		if (!$token = $this->getToken($salt))
+		if (!$token = $this->getToken())
 			return LOGIN_FAIL;
 
 		$response = $this->makeRequest('user_data', ['wst' => $token]);
