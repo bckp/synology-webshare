@@ -77,7 +77,7 @@ class SynoFileHostingWebshare {
 	 * @return string
 	 */
 	protected function getIdent($url) {
-		if (@preg_match('~^https?://(?:.*?\.)?webshare\.cz/(?:#/?)?file/(?P<ident>\w+)(?:/.*)?$~i', trim($url), $matches)) {
+		if (@preg_match('~^https?://(?:beta\.)?webshare\.cz(?:/|#|/#|#/|/#/)file/(?P<ident>\w+)(?:/.*)?$~i', trim($url), $matches)) {
 			if (isset($matches['ident']))
 				return $matches['ident'];
 		}
