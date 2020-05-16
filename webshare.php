@@ -56,13 +56,17 @@ class SynoFileHostingWebshare {
 	 */
 	public function GetDownloadInfo() {
 		try {
-			$ident = $this->getIdent($this->url);
+			if ($this->isDirectLink($this->url)) {
+				$link = $this->url;
+			} else {
+				$ident = $this->getIdent($this->url);
 
-			if (!$ident)
-				throw new \Exception('Identifier not found', ERR_NOT_SUPPORT_TYPE);
+				if (!$ident)
+					throw new \Exception('Identifier not found', ERR_NOT_SUPPORT_TYPE);
 
-			if (!$link = $this->getDirectLink($ident))
-				throw new \Exception('Link not found', ERR_FILE_NO_EXIST);
+				if (!$link = $this->getDirectLink($ident))
+					throw new \Exception('Link not found', ERR_FILE_NO_EXIST);
+			}
 
 			return [DOWNLOAD_URL => $link];
 		} catch (\Exception $e) {
@@ -74,14 +78,27 @@ class SynoFileHostingWebshare {
 	 * Get identifier from link
 	 *
 	 * @param string $url
-	 * @return string
+	 * @return string|null
 	 */
 	protected function getIdent($url) {
 		if (@preg_match('~^https?://(?:beta\.)?webshare\.cz(?:/|#|/#|#/|/#/)file/(?P<ident>\w+)(?:/.*)?$~i', trim($url), $matches)) {
 			if (isset($matches['ident']))
 				return $matches['ident'];
 		}
-		return false;
+		return null;
+	}
+
+	/**
+	 * Is direct link inserted?
+	 *
+	 * @param string $url
+	 * @return string|null
+	 */
+	protected function isDirectLink($url) {
+		if(@preg_match('~^https?://vip\.\d+\.dl\.webshare\.cz/.*$~i', trim($url))){
+			return $url;
+		}
+		return null;
 	}
 
 	/**
