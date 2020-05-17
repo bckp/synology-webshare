@@ -95,7 +95,7 @@ class SynoFileHostingWebshare {
 	 * @return string|null
 	 */
 	protected function isDirectLink($url) {
-		if(@preg_match('~^https?://vip\.\d+\.dl\.webshare\.cz/.*$~i', trim($url))){
+		if(@preg_match('~^https?://(vip\.)?\d+\.dl\.webshare\.cz/.*$~i', trim($url))){
 			return $url;
 		}
 		return null;
