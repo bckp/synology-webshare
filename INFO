@@ -2,7 +2,7 @@
 	"name": "Webshare.cz",
 	"hostprefix": "webshare.cz",
 	"displayname": "Webshare.cz",
-	"version": "20.05.1",
+	"version": "22.04",
 	"authentication": "yes",
 	"module": "webshare.php",
 	"class": "SynoFileHostingWebshare",

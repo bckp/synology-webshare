@@ -5,7 +5,8 @@
  *
  * @author Radovan Kepak <radovan@kepak.eu>
  */
-class SynoFileHostingWebshare {
+class SynoFileHostingWebshare
+{
 	/**
 	 * Webshare API link
 	 */
@@ -43,7 +44,8 @@ class SynoFileHostingWebshare {
 	 * @param $username string
 	 * @param $password string
 	 */
-	public function __construct($url, $username, $password) {
+	public function __construct($url, $username, $password)
+	{
 		$this->url = $url;
 		$this->username = $username;
 		$this->password = $password;
@@ -54,18 +56,21 @@ class SynoFileHostingWebshare {
 	 *
 	 * @return array
 	 */
-	public function GetDownloadInfo() {
+	public function GetDownloadInfo()
+	{
 		try {
 			if ($this->isDirectLink($this->url)) {
 				$link = $this->url;
 			} else {
 				$ident = $this->getIdent($this->url);
 
-				if (!$ident)
+				if (!$ident) {
 					throw new \Exception('Identifier not found', ERR_NOT_SUPPORT_TYPE);
+				}
 
-				if (!$link = $this->getDirectLink($ident))
+				if (!$link = $this->getDirectLink($ident)) {
 					throw new \Exception('Link not found', ERR_FILE_NO_EXIST);
+				}
 			}
 
 			return [DOWNLOAD_URL => $link];
@@ -80,10 +85,13 @@ class SynoFileHostingWebshare {
 	 * @param string $url
 	 * @return string|null
 	 */
-	protected function getIdent($url) {
-		if (@preg_match('~^https?://(?:beta\.)?webshare\.cz(?:/|#|/#|#/|/#/)file/(?P<ident>\w+)(?:/.*)?$~i', trim($url), $matches)) {
-			if (isset($matches['ident']))
-				return $matches['ident'];
+	protected function getIdent($url)
+	{
+		if (
+			@preg_match('~^https?://(?:beta\.)?webshare\.cz(?:/|#|/#|#/|/#/)file/(?P<ident>\w+)(?:/.*)?$~i', trim($url), $matches)
+			&& isset($matches['ident'])
+		) {
+			return $matches['ident'];
 		}
 		return null;
 	}
@@ -94,8 +102,9 @@ class SynoFileHostingWebshare {
 	 * @param string $url
 	 * @return string|null
 	 */
-	protected function isDirectLink($url) {
-		if(@preg_match('~^https?://(vip\.)?\d+\.dl\.webshare\.cz/.*$~i', trim($url))){
+	protected function isDirectLink($url)
+	{
+		if (@preg_match('~^https?://(vip\.)?\d+\.dl\.webshare\.cz/.*$~i', trim($url))) {
 			return $url;
 		}
 		return null;
@@ -108,7 +117,8 @@ class SynoFileHostingWebshare {
 	 * @return string|false
 	 * @throws \Exception
 	 */
-	protected function getDirectLink($ident) {
+	protected function getDirectLink($ident)
+	{
 		if (!$this->getSalt()) {
 			throw new \Exception('Salt can`t be loaded', LOGIN_FAIL);
 		}
@@ -127,7 +137,8 @@ class SynoFileHostingWebshare {
 	 *
 	 * @return string|false
 	 */
-	protected function getSalt() {
+	protected function getSalt()
+	{
 		if ($this->salt === null) {
 			$this->salt = false;
 			$response = $this->makeRequest('salt', [
@@ -147,12 +158,13 @@ class SynoFileHostingWebshare {
 	 * @param array $data
 	 * @return bool|string
 	 */
-	protected function makeRequest($action, array $data) {
+	protected function makeRequest($action, array $data)
+	{
 		$headers = ['Accept' => 'application/json'];
 		$url = self::API_URL . "/{$action}/";
 		$response = $this->request($url, $headers, $data);
 		$status = $this->getXmlParam($response, 'status');
-		return $status == 'OK' ? $response : false;
+		return $status === 'OK' ? $response : false;
 	}
 
 	/**
@@ -161,10 +173,11 @@ class SynoFileHostingWebshare {
 	 * @param array $data
 	 * @return string
 	 */
-	protected function request($url, array $headers = [], array $data = []) {
+	protected function request($url, array $headers = [], array $data = [])
+	{
 		$curl = @curl_init();
 
-		@curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, false);
+		//@curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, false);
 		@curl_setopt($curl, CURLOPT_POST, true);
 		@curl_setopt($curl, CURLOPT_HTTPHEADER, $headers);
 		@curl_setopt($curl, CURLOPT_POSTFIELDS, http_build_query($data));
@@ -188,10 +201,30 @@ class SynoFileHostingWebshare {
 	 * @param $key string
 	 * @return bool|string
 	 */
-	protected function getXmlParam($xml, $key) {
+	protected function getXmlParamFallback($xml, $key)
+	{
+		$element = @preg_quote($key, '~');
+		if (@preg_match('~<(' . $element . ')>(?P<value>.*?)</(?1)>~i', $xml, $matches)) {
+			return (string)$matches['value'];
+		}
+		return false;
+	}
+
+	/**
+	 * Get param from XML response
+	 *
+	 * @param $xml string
+	 * @param $key string
+	 * @return bool|string
+	 */
+	protected function getXmlParam($xml, $key)
+	{
+		if (!class_exists('SimpleXMLElement')) {
+			return $this->getXmlParamFallback($xml, $key);
+		}
 		try {
 			$data = new \SimpleXMLElement($xml);
-			return isset($data->{$key}) ? strval($data->{$key}) : false;
+			return isset($data->{$key}) ? (string) $data->{$key} : false;
 		} catch (\Exception $e) {
 			return false;
 		}
@@ -203,11 +236,13 @@ class SynoFileHostingWebshare {
 	 * @param string salt
 	 * @return null|string
 	 */
-	protected function getToken() {
+	protected function getToken()
+	{
 		if ($this->token === null) {
 			$this->token = false;
-			if (!$salt = $this->getSalt())
+			if (!$salt = $this->getSalt()) {
 				return false;
+			}
 
 			$response = $this->makeRequest('login', [
 				'username_or_email' => $this->username,
@@ -228,16 +263,20 @@ class SynoFileHostingWebshare {
 	 *
 	 * @return int
 	 */
-	public function Verify() {
-		if (!$this->getSalt())
+	public function Verify()
+	{
+		if (!$this->getSalt()) {
 			return LOGIN_FAIL;
+		}
 
-		if (!$token = $this->getToken())
+		if (!$token = $this->getToken()) {
 			return LOGIN_FAIL;
+		}
 
 		$response = $this->makeRequest('user_data', ['wst' => $token]);
-		if ((int) $this->getXmlParam($response, 'vip') === 1)
+		if ((int)$this->getXmlParam($response, 'vip') === 1) {
 			return USER_IS_PREMIUM;
+		}
 		return USER_IS_FREE;
 	}
 }
