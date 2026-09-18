@@ -1,3 +1,5 @@
 # PHP Storm, Netbeans
 /.idea
-/tests
+
+# Generated release artifacts
+/dist/
