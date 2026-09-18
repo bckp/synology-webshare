@@ -63,6 +63,16 @@ $tests = [
 		assertSameValue([DOWNLOAD_URL => $publicLink], $client->GetDownloadInfo(), 'Direct URL result');
 		assertSameValue([], $client->requests, 'Direct URL must not call the API');
 	},
+	'direct URL whitespace is removed' => function () use ($publicLink) {
+		$client = new TestWebshareClient(" \t{$publicLink}\n", '', '', []);
+		assertSameValue([DOWNLOAD_URL => $publicLink], $client->GetDownloadInfo(), 'Trimmed direct URL result');
+		assertSameValue([], $client->requests, 'Direct URL must not call the API');
+	},
+	'insecure direct URL is rejected' => function () use ($publicLink) {
+		$client = new TestWebshareClient(str_replace('https://', 'http://', $publicLink), '', '', []);
+		assertSameValue([DOWNLOAD_ERROR => ERR_NOT_SUPPORT_TYPE], $client->GetDownloadInfo(), 'HTTP direct URL result');
+		assertSameValue([], $client->requests, 'Rejected direct URL must not call the API');
+	},
 	'public Webshare link returns a forced HTTPS download URL' => function () use ($shareUrl, $publicLink) {
 		$client = new TestWebshareClient($shareUrl, '', '', [
 			'file_link' => [response('OK', ['link' => $publicLink])],
@@ -92,6 +102,45 @@ $tests = [
 		]);
 		assertSameValue([DOWNLOAD_URL => $publicLink], $client->GetDownloadInfo(), 'Authenticated fallback result');
 		assertSameValue('test-token', $client->requests[3]['data']['wst'], 'Authenticated request token');
+	},
+	'free account verification succeeds' => function () use ($shareUrl) {
+		$client = new TestWebshareClient($shareUrl, 'test@example.com', 'secret', [
+			'salt' => [response('OK', ['salt' => 'testsalt'])],
+			'login' => [response('OK', ['token' => 'test-token'])],
+			'user_data' => [response('OK', ['vip' => '0'])],
+		]);
+		assertSameValue(USER_IS_FREE, $client->Verify(), 'Free account verification');
+	},
+	'premium account verification accepts the Synology argument' => function () use ($shareUrl) {
+		$client = new TestWebshareClient($shareUrl, 'test@example.com', 'secret', [
+			'salt' => [response('OK', ['salt' => 'testsalt'])],
+			'login' => [response('OK', ['token' => 'test-token'])],
+			'user_data' => [response('OK', ['vip' => '1'])],
+		]);
+		assertSameValue(USER_IS_PREMIUM, $client->Verify(true), 'Premium account verification');
+	},
+	'user data API failure does not report a free account' => function () use ($shareUrl) {
+		$client = new TestWebshareClient($shareUrl, 'test@example.com', 'secret', [
+			'salt' => [response('OK', ['salt' => 'testsalt'])],
+			'login' => [response('OK', ['token' => 'test-token'])],
+			'user_data' => [response('FATAL', ['code' => 'USER_DATA_FATAL'])],
+		]);
+		assertSameValue(LOGIN_FAIL, $client->Verify(), 'Failed user data request');
+	},
+	'plugin identity and public signatures stay compatible' => function () use ($shareUrl) {
+		$info = json_decode(file_get_contents(dirname(__DIR__) . '/INFO'), true);
+		assertSameValue('Webshare.cz', $info['name'], 'Stable plugin name');
+
+		$constructor = new ReflectionMethod('SynoFileHostingWebshare', '__construct');
+		assertSameValue(4, $constructor->getNumberOfParameters(), 'Constructor parameter count');
+		assertSameValue(3, $constructor->getNumberOfRequiredParameters(), 'Constructor required parameter count');
+
+		$verify = new ReflectionMethod('SynoFileHostingWebshare', 'Verify');
+		assertSameValue(1, $verify->getNumberOfParameters(), 'Verify parameter count');
+		assertSameValue(0, $verify->getNumberOfRequiredParameters(), 'Verify required parameter count');
+
+		$client = new SynoFileHostingWebshare($shareUrl, '', '', ['source' => 'test']);
+		assertSameValue(true, $client instanceof SynoFileHostingWebshare, 'Constructor accepts HostInfo');
 	},
 ];
 

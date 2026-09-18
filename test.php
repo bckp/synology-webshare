@@ -12,20 +12,27 @@ DEFINE('ERR_FILE_NO_EXIST', 'err_file_no_exists');
 
 DEFINE('DOWNLOAD_STATION_USER_AGENT', 'synology');
 
-function getParam($num) {
-	global $argv;
-	return isset($argv[$num]) ? $argv[$num] : null;
+$user = getenv('WEBSHARE_USERNAME');
+$pass = getenv('WEBSHARE_PASSWORD');
+$link = isset($argv[1]) ? $argv[1] : null;
+
+$user = $user === false ? '' : $user;
+$pass = $pass === false ? '' : $pass;
+
+if (count($argv) > 2) {
+	fwrite(STDERR, 'Credentials must be provided through WEBSHARE_USERNAME and WEBSHARE_PASSWORD.' . PHP_EOL);
+	exit(2);
 }
 
-$user = getParam(1);
-$pass = getParam(2);
-$link = getParam(3);
+if (empty($link)) {
+	fwrite(STDERR, 'Usage: php test.php <Webshare URL>' . PHP_EOL);
+	exit(2);
+}
 
 $msg = [
 	'Running test script',
 	'-------------------',
-	"user: {$user}",
-	"pass: {$pass}",
+	'account: ' . (!empty($user) && !empty($pass) ? 'supplied via environment' : 'not supplied'),
 	"link: {$link}"
 ];
 

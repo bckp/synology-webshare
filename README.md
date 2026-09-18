@@ -24,6 +24,19 @@ connection:
 php tests/unit.php
 ```
 
+For an optional live account test, keep the password out of command arguments
+and shell history:
+
+```fish
+read --silent --prompt-str='Webshare password: ' webshare_password
+begin
+    set -lx WEBSHARE_USERNAME 'user@example.com'
+    set -lx WEBSHARE_PASSWORD $webshare_password
+    php test.php 'https://webshare.cz/#/file/example/'
+end
+set -e webshare_password
+```
+
 Build the same host archive that CI and the release workflow produce:
 
 ```fish
