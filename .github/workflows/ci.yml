@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: PHP ${{ matrix.php }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        php:
+          - "5.6"
+          - "7.4"
+          - "8.2"
+          - "8.5"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@bf6b4fbd49ca58e4608c9c89fba0b8d90bd2a39f # 2.35.5
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+          tools: none
+
+      - name: Lint PHP files
+        run: find . -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+
+      - name: Validate plugin metadata
+        run: |
+          php -r '$info = json_decode(file_get_contents("INFO"), true); if (!is_array($info) || json_last_error() !== JSON_ERROR_NONE) { fwrite(STDERR, "INFO is not valid JSON\n"); exit(1); } foreach (["name", "hostprefix", "displayname", "version", "authentication", "module", "class", "description"] as $key) { if (!isset($info[$key]) || $info[$key] === "") { fwrite(STDERR, "INFO is missing: {$key}\n"); exit(1); } } require $info["module"]; if (!class_exists($info["class"], false)) { fwrite(STDERR, "INFO.class does not exist\n"); exit(1); }'
+
+      - name: Run offline unit tests
+        run: php tests/unit.php
+
+      - name: Check line endings
+        if: matrix.php == '8.5'
+        run: |
+          if git grep -Il $'\r' -- '*.php' '*.md' '*.yml' '*.yaml' INFO; then
+            echo 'Text files must use LF line endings.' >&2
+            exit 1
+          fi
+
+      - name: Build and verify host archive
+        if: matrix.php == '8.5'
+        run: |
+          mkdir -p dist/first dist/second
+          git archive --format=tar.gz --output=dist/first/webshare.host "$GITHUB_SHA" INFO webshare.php
+          git archive --format=tar.gz --output=dist/second/webshare.host "$GITHUB_SHA" INFO webshare.php
+          cmp dist/first/webshare.host dist/second/webshare.host
+          tar -tzf dist/first/webshare.host > dist/actual-files.txt
+          printf 'INFO\nwebshare.php\n' > dist/expected-files.txt
+          diff -u dist/expected-files.txt dist/actual-files.txt
+          tar -xzf dist/first/webshare.host -C dist/first
+          cmp INFO dist/first/INFO
+          cmp webshare.php dist/first/webshare.php
