@@ -1,6 +1,8 @@
 # synology-webshare
 Plugin for Download Station to download public Webshare links. An account is used only when Webshare requires one.
 
+Updated for Webshare.cz's 2026 APIs and Synology Download Station 3.9.5.
+
 # install
 Download prepacked webshare.host file (raw download or as complete repo in zip).
 
@@ -21,6 +23,8 @@ php tests.php
 
 # česky
 Neoficiální doplněk ke stahování pouze ze serveru webshare.cz
+
+Aktualizováno pro API Webshare.cz z roku 2026 a Synology Download Station 3.9.5.
 
 # instalace
 Stáhněte webshare.host soubor.
