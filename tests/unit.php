@@ -12,7 +12,7 @@ define('ERR_FILE_NO_EXIST', 'err_file_no_exists');
 
 define('DOWNLOAD_STATION_USER_AGENT', 'synology');
 
-require __DIR__ . '/webshare.php';
+require dirname(__DIR__) . '/webshare.php';
 
 class TestWebshareClient extends SynoFileHostingWebshare
 {
