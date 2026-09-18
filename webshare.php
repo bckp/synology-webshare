@@ -43,8 +43,9 @@ class SynoFileHostingWebshare
 	 * @param $url      string
 	 * @param $username string
 	 * @param $password string
+	 * @param $HostInfo mixed
 	 */
-	public function __construct($url, $username, $password)
+	public function __construct($url, $username, $password, $HostInfo = null)
 	{
 		$this->url = $url;
 		$this->username = $username;
@@ -58,8 +59,8 @@ class SynoFileHostingWebshare
 	 */
 	public function GetDownloadInfo()
 	{
-		if ($this->isDirectLink($this->url)) {
-			return [DOWNLOAD_URL => $this->url];
+		if ($link = $this->isDirectLink($this->url)) {
+			return [DOWNLOAD_URL => $link];
 		}
 
 		$ident = $this->getIdent($this->url);
@@ -100,7 +101,8 @@ class SynoFileHostingWebshare
 	 */
 	protected function isDirectLink($url)
 	{
-		if (@preg_match('~^https?://(?:(?:free|vip)\.)?\d+\.dl\.(?:webshare\.cz|wsfiles\.cz)/.+$~i', trim($url))) {
+		$url = trim($url);
+		if (@preg_match('~^https://(?:(?:free|vip)\.)?\d+\.dl\.(?:webshare\.cz|wsfiles\.cz)/.+$~i', $url)) {
 			return $url;
 		}
 		return null;
@@ -313,9 +315,10 @@ class SynoFileHostingWebshare
 	/**
 	 * Verify account
 	 *
+	 * @param bool $ClearCookie
 	 * @return int
 	 */
-	public function Verify()
+	public function Verify($ClearCookie = false)
 	{
 		if (!$this->getSalt()) {
 			return LOGIN_FAIL;
@@ -326,6 +329,9 @@ class SynoFileHostingWebshare
 		}
 
 		$response = $this->makeRequest('user_data', ['wst' => $token]);
+		if (!$response) {
+			return LOGIN_FAIL;
+		}
 		if ((int)$this->getXmlParam($response, 'vip') === 1) {
 			return USER_IS_PREMIUM;
 		}
