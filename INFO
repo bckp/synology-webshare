@@ -1,10 +1,10 @@
 {
-	"name": "Webshare.cz",
+	"name": "Webshare.cz 2026",
 	"hostprefix": "webshare.cz",
 	"displayname": "Webshare.cz",
-	"version": "22.04",
+	"version": "26.10",
 	"authentication": "yes",
 	"module": "webshare.php",
 	"class": "SynoFileHostingWebshare",
-	"description": "Existing account required"
+	"description": "Webshare files; account is required for private files"
 }
