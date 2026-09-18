@@ -1,0 +1,66 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "*"
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: Test, build, and publish
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out tagged commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@bf6b4fbd49ca58e4608c9c89fba0b8d90bd2a39f # 2.35.5
+        with:
+          php-version: "8.5"
+          coverage: none
+          tools: none
+
+      - name: Require tag to match INFO.version
+        run: |
+          info_version="$(php -r '$info = json_decode(file_get_contents("INFO"), true); if (!is_array($info) || !isset($info["version"])) { fwrite(STDERR, "INFO.version is missing\n"); exit(1); } echo $info["version"];')"
+          if [ "$GITHUB_REF_NAME" != "$info_version" ]; then
+            echo "Tag '$GITHUB_REF_NAME' does not match INFO.version '$info_version'." >&2
+            exit 1
+          fi
+
+      - name: Require tagged commit to be on master
+        run: git merge-base --is-ancestor "$GITHUB_SHA" origin/master
+
+      - name: Lint and test
+        run: |
+          find . -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+          php tests/unit.php
+
+      - name: Build and verify reproducible archive
+        run: |
+          mkdir -p dist/verify
+          git archive --format=tar.gz --output=dist/webshare.host "$GITHUB_SHA" INFO webshare.php
+          git archive --format=tar.gz --output=dist/verify/webshare.host "$GITHUB_SHA" INFO webshare.php
+          cmp dist/webshare.host dist/verify/webshare.host
+          tar -tzf dist/webshare.host > dist/actual-files.txt
+          printf 'INFO\nwebshare.php\n' > dist/expected-files.txt
+          diff -u dist/expected-files.txt dist/actual-files.txt
+          tar -xzf dist/webshare.host -C dist/verify
+          cmp INFO dist/verify/INFO
+          cmp webshare.php dist/verify/webshare.php
+          cd dist
+          sha256sum webshare.host > SHA256SUMS
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release create "$GITHUB_REF_NAME" dist/webshare.host dist/SHA256SUMS --verify-tag --generate-notes
