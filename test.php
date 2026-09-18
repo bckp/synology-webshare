@@ -43,8 +43,12 @@ $resultMsg = [
 	1 => 'Passed - regular',
 	2 => 'Passed - vip'
 ];
-$result = $client->Verify();
-echo $resultMsg[$result] . PHP_EOL;
+if (empty($user) || empty($pass)) {
+	echo 'Skipped (no account supplied)' . PHP_EOL;
+} else {
+	$result = $client->Verify();
+	echo $resultMsg[$result] . PHP_EOL;
+}
 
 # Link
 echo 'Testing link: ';

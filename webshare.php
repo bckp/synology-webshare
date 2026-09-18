@@ -58,25 +58,21 @@ class SynoFileHostingWebshare
 	 */
 	public function GetDownloadInfo()
 	{
-		try {
-			if ($this->isDirectLink($this->url)) {
-				$link = $this->url;
-			} else {
-				$ident = $this->getIdent($this->url);
-
-				if (!$ident) {
-					throw new \Exception('Identifier not found', ERR_NOT_SUPPORT_TYPE);
-				}
-
-				if (!$link = $this->getDirectLink($ident)) {
-					throw new \Exception('Link not found', ERR_FILE_NO_EXIST);
-				}
-			}
-
-			return [DOWNLOAD_URL => $link];
-		} catch (\Exception $e) {
-			return [DOWNLOAD_ERROR => $e->getCode()];
+		if ($this->isDirectLink($this->url)) {
+			return [DOWNLOAD_URL => $this->url];
 		}
+
+		$ident = $this->getIdent($this->url);
+		if (!$ident) {
+			return [DOWNLOAD_ERROR => ERR_NOT_SUPPORT_TYPE];
+		}
+
+		$link = $this->getDirectLink($ident);
+		if (!$link) {
+			return [DOWNLOAD_ERROR => ERR_FILE_NO_EXIST];
+		}
+
+		return [DOWNLOAD_URL => $link];
 	}
 
 	/**
@@ -88,7 +84,7 @@ class SynoFileHostingWebshare
 	protected function getIdent($url)
 	{
 		if (
-			@preg_match('~^https?://(?:beta\.)?webshare\.cz(?:/|#|/#|#/|/#/)file/(?P<ident>\w+)(?:/.*)?$~i', trim($url), $matches)
+			@preg_match('~^https?://(?:(?:www|beta)\.)?webshare\.cz(?:/|#|/#|#/|/#/)file/(?P<ident>\w+)(?:/.*)?$~i', trim($url), $matches)
 			&& isset($matches['ident'])
 		) {
 			return $matches['ident'];
@@ -104,7 +100,7 @@ class SynoFileHostingWebshare
 	 */
 	protected function isDirectLink($url)
 	{
-		if (@preg_match('~^https?://(vip\.)?\d+\.dl\.webshare\.cz/.*$~i', trim($url))) {
+		if (@preg_match('~^https?://(?:(?:free|vip)\.)?\d+\.dl\.(?:webshare\.cz|wsfiles\.cz)/.+$~i', trim($url))) {
 			return $url;
 		}
 		return null;
@@ -115,21 +111,41 @@ class SynoFileHostingWebshare
 	 *
 	 * @param string $ident
 	 * @return string|false
-	 * @throws \Exception
 	 */
 	protected function getDirectLink($ident)
 	{
-		if (!$this->getSalt()) {
-			throw new \Exception('Salt can`t be loaded', LOGIN_FAIL);
+		// Public files can be resolved without an account. This is also useful when
+		// Download Station cannot verify an otherwise valid Webshare account.
+		$response = $this->makeRequest('file_link', $this->getFileLinkData($ident));
+		if ($response && ($link = $this->getXmlParam($response, 'link'))) {
+			return $link;
 		}
 
-		if (!$token = $this->getToken()) {
-			throw new \Exception('User can`t be logged!', LOGIN_FAIL);
+		// A login remains necessary for files that Webshare does not expose publicly.
+		if (empty($this->username) || empty($this->password) || !($token = $this->getToken())) {
+			return false;
 		}
-
-		$data = ['wst' => $token, 'ident' => $ident];
+		$data = $this->getFileLinkData($ident);
+		$data['wst'] = $token;
 		$response = $this->makeRequest('file_link', $data);
 		return $response ? $this->getXmlParam($response, 'link') : false;
+	}
+
+	/**
+	 * Parameters used by the current Webshare web client when creating a file link.
+	 *
+	 * @param string $ident
+	 * @return array
+	 */
+	protected function getFileLinkData($ident)
+	{
+		return [
+			'ident' => $ident,
+			'download_type' => 'file_download',
+			'force_https' => 1,
+			'device_vendor' => 'Synology',
+			'device_model' => 'Download Station',
+		];
 	}
 
 	/**
@@ -160,7 +176,10 @@ class SynoFileHostingWebshare
 	 */
 	protected function makeRequest($action, array $data)
 	{
-		$headers = ['Accept' => 'application/json'];
+		$headers = [
+			'Accept: text/xml; charset=UTF-8',
+			'Content-Type: application/x-www-form-urlencoded; charset=UTF-8',
+		];
 		$url = self::API_URL . "/{$action}/";
 		$response = $this->request($url, $headers, $data);
 		$status = $this->getXmlParam($response, 'status');
@@ -175,14 +194,19 @@ class SynoFileHostingWebshare
 	 */
 	protected function request($url, array $headers = [], array $data = [])
 	{
-		$curl = @curl_init();
+		if (!function_exists('curl_init')) {
+			return $this->streamRequest($url, $headers, $data);
+		}
 
-		//@curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, false);
+		$curl = @curl_init();
+		if (!$curl) {
+			return $this->streamRequest($url, $headers, $data);
+		}
+
 		@curl_setopt($curl, CURLOPT_POST, true);
 		@curl_setopt($curl, CURLOPT_HTTPHEADER, $headers);
 		@curl_setopt($curl, CURLOPT_POSTFIELDS, http_build_query($data));
 		@curl_setopt($curl, CURLOPT_USERAGENT, DOWNLOAD_STATION_USER_AGENT);
-		@curl_setopt($curl, CURLOPT_COOKIEFILE, '/tmp/webshare.cookies.l');
 		@curl_setopt($curl, CURLOPT_TIMEOUT, 15);
 		@curl_setopt($curl, CURLOPT_FOLLOWLOCATION, true);
 		@curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
@@ -191,7 +215,35 @@ class SynoFileHostingWebshare
 		$response = @curl_exec($curl);
 		@curl_close($curl);
 
-		return $response;
+		return $response !== false ? $response : $this->streamRequest($url, $headers, $data);
+	}
+
+	/**
+	 * Fallback for Download Station PHP runtimes where cURL is unavailable or
+	 * cannot establish a connection. TLS certificate verification remains enabled.
+	 *
+	 * @param string $url
+	 * @param array $headers
+	 * @param array $data
+	 * @return bool|string
+	 */
+	protected function streamRequest($url, array $headers, array $data)
+	{
+		if (!function_exists('stream_context_create')) {
+			return false;
+		}
+
+		$context = @stream_context_create([
+			'http' => [
+				'method' => 'POST',
+				'header' => implode("\r\n", $headers),
+				'content' => http_build_query($data),
+				'timeout' => 15,
+				'ignore_errors' => true,
+			],
+		]);
+
+		return @file_get_contents($url, false, $context);
 	}
 
 	/**
@@ -247,7 +299,7 @@ class SynoFileHostingWebshare
 			$response = $this->makeRequest('login', [
 				'username_or_email' => $this->username,
 				'password' => sha1(crypt($this->password, '$1$' . $salt . '$')),
-				'digest' => md5($this->username . ':Webshare:' . $this->password),
+				'keep_logged_in' => 0,
 			]);
 
 			if ($response) {
